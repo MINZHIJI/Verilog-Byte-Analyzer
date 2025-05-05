@@ -3,8 +3,23 @@ import argparse
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-# ───── Core Logic ─────
+# ───── Bit Field Mapping ─────
+BIT_FIELD_MAP = {
+    (8, 12): "opcode",
+    (0, 3): "valid",
+    (4, 7): "flag",
+    (16, 23): "address",
+    (24, 31): "immediate",
+}
+FIELD_NAME_MAP = {v: k for k, v in BIT_FIELD_MAP.items()}
+RESERVED_WORDS = {
+    "hex", "dec", "bin",
+    "to_hex", "to_bin", "to_dec",
+    "byte_align", "dw_align",
+    "q"
+}
 
+# ───── Core Functions ─────
 def parse_by_mode(input_str, mode):
     input_str = input_str.strip().lower()
     if mode == 'hex':
@@ -85,11 +100,11 @@ def print_status(input_mode, output_format, align_mode):
     print("  to_hex / to_bin / to_dec - Switch output format")
     print("  byte_align / dw_align    - Switch alignment mode")
     print("  r<low>-<high>            - Extract bit range from last value")
+    print("  <field_name>             - Extract predefined field (if not a reserved word)")
     print("  q                        - Quit")
     print(f"Current settings: input = {input_mode}, output = {output_format}, alignment = {align_mode}\n")
 
 # ───── CLI Mode ─────
-
 def interactive_loop():
     current_input_mode = 'hex'
     current_output_format = 'hex'
@@ -121,30 +136,29 @@ def interactive_loop():
             print_status(current_input_mode, current_output_format, current_align_mode)
             continue
         elif re.fullmatch(r"r\d+-\d+", user_input):
-            if last_value is None:
-                print("No value yet.")
-                continue
             m = re.match(r"r(\d+)-(\d+)", user_input)
             start, end = int(m.group(1)), int(m.group(2))
-            if start > end:
-                print(f"Note: range corrected to {end}-{start}")
-            extracted, low, high = extract_bit_range(last_value, start, end)
-            width = high - low + 1
-            print(f"bit {low}-{high} = 0b{extracted:0{width}b} (dec = {extracted})")
+        elif user_input in FIELD_NAME_MAP and user_input not in RESERVED_WORDS:
+            start, end = FIELD_NAME_MAP[user_input]
+        else:
+            value = parse_by_mode(user_input, current_input_mode)
+            if value is None:
+                print("Invalid input or reserved word.")
+                continue
+            last_value = value
+            bytes_list = convert_to_bytes(value)
+            print(f"[Result] Input mode = {current_input_mode}, Output = {current_output_format}, Alignment = {current_align_mode}")
+            print(display_bytes(bytes_list, current_output_format, current_align_mode))
             continue
 
-        value = parse_by_mode(user_input, current_input_mode)
-        if value is None:
-            print(f"Invalid input: {user_input}")
-            continue
-
-        last_value = value
-        bytes_list = convert_to_bytes(value)
-        print(f"[Result] Input mode = {current_input_mode}, Output = {current_output_format}, Align = {current_align_mode}")
-        print(display_bytes(bytes_list, current_output_format, current_align_mode))
+        extracted, low, high = extract_bit_range(last_value, start, end)
+        width = high - low + 1
+        label = f"bit {low}-{high}"
+        if user_input in FIELD_NAME_MAP:
+            label += f" [{user_input}]"
+        print(f"{label} = 0b{extracted:0{width}b} (dec = {extracted})")
 
 # ───── GUI Mode ─────
-
 def run_gui():
     last_value = {'int': None}
 
@@ -168,14 +182,22 @@ def run_gui():
         if last_value['int'] is None:
             messagebox.showwarning("Warning", "No parsed value yet.")
             return
-        match = re.fullmatch(r"\s*(\d+)\s*-\s*(\d+)\s*", extract_entry.get())
-        if not match:
-            messagebox.showerror("Error", "Use format: 12-8")
+        key = extract_entry.get().strip()
+
+        if re.fullmatch(r"\d+-\d+", key):
+            start, end = map(int, key.split("-"))
+        elif key in FIELD_NAME_MAP and key not in RESERVED_WORDS:
+            start, end = FIELD_NAME_MAP[key]
+        else:
+            messagebox.showerror("Error", "Enter bit range (e.g., 12-8) or field name (e.g., opcode)")
             return
-        start, end = int(match.group(1)), int(match.group(2))
+
         extracted, low, high = extract_bit_range(last_value['int'], start, end)
         width = high - low + 1
-        result_box.insert(tk.END, f"\n[Bit {low}-{high}] = 0b{extracted:0{width}b} (dec = {extracted})\n")
+        label = f"Bit {low}-{high}"
+        if key in FIELD_NAME_MAP:
+            label += f" [{key}]"
+        result_box.insert(tk.END, f"\n{label} = 0b{extracted:0{width}b} (dec = {extracted})\n")
 
     root = tk.Tk()
     root.title("Verilog Byte Analyzer")
@@ -205,7 +227,7 @@ def run_gui():
 
     ttk.Button(frame, text="Analyze", command=on_analyze).grid(column=2, row=1, rowspan=2)
 
-    ttk.Label(frame, text="Bit Range (e.g., 12-8):").grid(column=0, row=4, sticky="w")
+    ttk.Label(frame, text="Bit Range or Field:").grid(column=0, row=4, sticky="w")
     extract_entry = ttk.Entry(frame, width=20)
     extract_entry.grid(column=1, row=4)
     extract_entry.bind("<Return>", on_extract)
@@ -216,11 +238,10 @@ def run_gui():
 
     root.mainloop()
 
-# ───── Entry Point ─────
-
+# ───── Entry ─────
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Verilog Byte Analyzer")
-    parser.add_argument("-gui", action="store_true", help="Launch GUI mode")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-gui", action="store_true", help="Run in GUI mode")
     args = parser.parse_args()
 
     if args.gui:

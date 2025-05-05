@@ -1,8 +1,11 @@
 import re
 import argparse
-import tkinter as tk
-from tkinter import ttk, messagebox
-from tkinter import filedialog
+try:
+    import tkinter as tk
+    from tkinter import ttk, messagebox, filedialog
+    GUI_AVAILABLE = True
+except ImportError:
+    GUI_AVAILABLE = False
 import json
 
 # ───── Bit Field Mapping ─────
@@ -361,6 +364,10 @@ if __name__ == "__main__":
         FIELD_NAME_MAP.update({v: k for k, v in BIT_FIELD_MAP.items()})
 
     if args.gui:
-        run_gui()
+        if GUI_AVAILABLE:
+            run_gui()
+        else:
+            print("tkinter is not installed. GUI mode is unavailable.")
+            exit(1)
     else:
         interactive_loop()

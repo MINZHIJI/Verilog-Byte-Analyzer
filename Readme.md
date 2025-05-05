@@ -44,6 +44,7 @@ q                        - Quit
 python analyzer.py
 ```
 
+⚠️ GUI mode requires Python's `tkinter` module. If not installed, the program will fall back to CLI mode with a warning.
 
 - Use input field to enter Verilog-style values
 - Dropdowns for input mode, output format, and alignment

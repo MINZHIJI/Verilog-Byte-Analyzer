@@ -2,6 +2,8 @@ import re
 import argparse
 import tkinter as tk
 from tkinter import ttk, messagebox
+from tkinter import filedialog
+import json
 
 # ───── Bit Field Mapping ─────
 BIT_FIELD_MAP = {
@@ -150,7 +152,7 @@ def interactive_loop():
             continue
         elif re.fullmatch(r"r\d+-\d+", user_input):
             m = re.match(r"r(\d+)-(\d+)", user_input)
-            start, end = int(m.group(1)), intｓ(m.group(2))
+            start, end = int(m.group(1)), int(m.group(2))
         elif user_input in FIELD_NAME_MAP and user_input not in RESERVED_WORDS:
             start, end = FIELD_NAME_MAP[user_input]
         else:
@@ -225,6 +227,24 @@ def run_gui():
             for (low, high), name in BIT_FIELD_MAP.items():
                 result_box.insert(tk.END, f"  {name}: bit {low}-{high}\n")
 
+    def on_load_fieldmap():
+        file_path = filedialog.askopenfilename(filetypes=[("JSONC Files", "*.jsonc"), ("All Files", "*.*")])
+        if not file_path:
+            return
+        try:
+            with open(file_path, 'r') as f:
+                content = f.read()
+            content = re.sub(r'//.*', '', content)
+            json_map = json.loads(content)
+            BIT_FIELD_MAP.clear()
+            FIELD_NAME_MAP.clear()
+            for k, v in json_map.items():
+                BIT_FIELD_MAP[tuple(v)] = k
+            FIELD_NAME_MAP.update({v: k for k, v in BIT_FIELD_MAP.items()})
+            messagebox.showinfo("Success", f"Loaded field map from {file_path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load field map: {e}")
+
     root = tk.Tk()
     root.title("Verilog Byte Analyzer")
 
@@ -260,9 +280,10 @@ def run_gui():
     ttk.Button(frame, text="Extract", command=on_extract).grid(column=2, row=4)
 
     ttk.Button(frame, text="List", command=on_list).grid(column=2, row=5)
+    ttk.Button(frame, text="Load FieldMap", command=on_load_fieldmap).grid(column=2, row=6)
 
     result_box = tk.Text(frame, width=100, height=25, wrap="none")
-    result_box.grid(column=0, row=6, columnspan=3, pady=10)
+    result_box.grid(column=0, row=7, columnspan=3, pady=10)
 
     root.mainloop()
 
@@ -270,7 +291,31 @@ def run_gui():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-gui", action="store_true", help="Run in GUI mode")
+    parser.add_argument("-f", "--fieldmap", type=str, help="Path to bit field map JSONC file")
     args = parser.parse_args()
+
+    if args.fieldmap:
+        import json
+        def load_jsonc(filepath):
+            try:
+                with open(filepath, 'r') as f:
+                    content = f.read()
+                content = re.sub(r'//.*', '', content)
+                if not content.strip():
+                    raise ValueError("File is empty or contains only comments.")
+                return json.loads(content)
+            except Exception as e:
+                print(f"Error loading JSONC file: {e}")
+                return None
+
+        json_map = load_jsonc(args.fieldmap)
+        if json_map is None:
+            exit(1)
+        BIT_FIELD_MAP.clear()
+        FIELD_NAME_MAP.clear()
+        for k, v in json_map.items():
+            BIT_FIELD_MAP[tuple(v)] = k
+        FIELD_NAME_MAP.update({v: k for k, v in BIT_FIELD_MAP.items()})
 
     if args.gui:
         run_gui()

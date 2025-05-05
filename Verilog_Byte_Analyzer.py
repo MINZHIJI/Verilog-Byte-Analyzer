@@ -18,7 +18,7 @@ RESERVED_WORDS = {
     "hex", "dec", "bin",
     "to_hex", "to_bin", "to_dec",
     "byte_align", "dw_align",
-    "q"
+    "list", "q"
 }
 
 # ───── Core Functions ─────
@@ -144,11 +144,16 @@ def interactive_loop():
                 for (low, high), name in BIT_FIELD_MAP.items():
                     extracted, _, _ = extract_bit_range(last_value, low, high)
                     width = abs(high - low) + 1
-                    print(f"  {name}: 0b{extracted:0{width}b} (dec = {extracted})")
+                    bin_str = f"{extracted:0{width}b}".rjust(32, ' ')
+                    dec_str = str(extracted)
+                    hex_str = f"0x{extracted:x}"
+                    print(f"{name.ljust(15)} {bin_str}")
+                    print(f"{'':15} dec: {dec_str}    hex: {hex_str}")
+                    print(f"{'':15} {'-' * 40}")
             else:
                 print("Predefined bit fields:")
                 for (low, high), name in BIT_FIELD_MAP.items():
-                    print(f"  {name}: bit {low}-{high}")
+                    print(f"  {name.ljust(15)} bit {low}-{high}")
             continue
         elif re.fullmatch(r"r\d+-\d+", user_input):
             m = re.match(r"r(\d+)-(\d+)", user_input)
@@ -221,7 +226,12 @@ def run_gui():
             for (low, high), name in BIT_FIELD_MAP.items():
                 extracted, _, _ = extract_bit_range(last_value['int'], low, high)
                 width = abs(high - low) + 1
-                result_box.insert(tk.END, f"  {name}: 0b{extracted:0{width}b} (dec = {extracted})\n")
+                bin_str = f"{extracted:0{width}b}".rjust(32, ' ')
+                dec_str = str(extracted).rjust(8)
+                hex_str = f"0x{extracted:x}".rjust(8)
+                result_box.insert(tk.END, f"{name.ljust(15)} {bin_str}\n")
+                result_box.insert(tk.END, f"{'':15} dec: {dec_str}    hex: {hex_str}\n")
+                result_box.insert(tk.END, f"{'':15} {'-' * 40}\n")
         else:
             result_box.insert(tk.END, "Predefined bit fields:\n")
             for (low, high), name in BIT_FIELD_MAP.items():

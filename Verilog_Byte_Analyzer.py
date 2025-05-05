@@ -171,7 +171,11 @@ def interactive_loop():
             print(f"{'':15} {'-' * 40}")
             continue
         elif user_input in FIELD_NAME_MAP and user_input not in RESERVED_WORDS:
-            start, end = FIELD_NAME_MAP[user_input]
+            try:
+                start, end = FIELD_NAME_MAP[user_input]
+            except ValueError:
+                print(f"Invalid field mapping for '{user_input}'.")
+                continue
             if last_value is None:
                 print("No value parsed yet. Please enter a value first.")
                 continue
@@ -272,6 +276,8 @@ def run_gui():
             BIT_FIELD_MAP.clear()
             FIELD_NAME_MAP.clear()
             for k, v in json_map.items():
+                if not isinstance(v, list) or len(v) != 2 or not all(isinstance(i, int) for i in v):
+                    raise ValueError(f"Invalid bit field for '{k}': must be a list of two integers")
                 BIT_FIELD_MAP[tuple(v)] = k
             FIELD_NAME_MAP.update({v: k for k, v in BIT_FIELD_MAP.items()})
             messagebox.showinfo("Success", f"Loaded field map from {file_path}")
@@ -336,7 +342,11 @@ if __name__ == "__main__":
                 content = re.sub(r'//.*', '', content)
                 if not content.strip():
                     raise ValueError("File is empty or contains only comments.")
-                return json.loads(content)
+                json_map = json.loads(content)
+                for k, v in json_map.items():
+                    if not isinstance(v, list) or len(v) != 2 or not all(isinstance(i, int) for i in v):
+                        raise ValueError(f"Invalid bit field for '{k}': must be a list of two integers")
+                return json_map
             except Exception as e:
                 print(f"Error loading JSONC file: {e}")
                 return None

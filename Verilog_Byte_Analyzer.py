@@ -101,6 +101,7 @@ def print_status(input_mode, output_format, align_mode):
     print("  byte_align / dw_align    - Switch alignment mode")
     print("  r<low>-<high>            - Extract bit range from last value")
     print("  <field_name>             - Extract predefined field (if not a reserved word)")
+    print("  list                     - Show predefined bit field names")
     print("  q                        - Quit")
     print(f"Current settings: input = {input_mode}, output = {output_format}, alignment = {align_mode}\n")
 
@@ -135,9 +136,21 @@ def interactive_loop():
             print(f"Alignment mode changed to: {current_align_mode}")
             print_status(current_input_mode, current_output_format, current_align_mode)
             continue
+        elif user_input == 'list':
+            if last_value is not None:
+                print("Last parsed value per field:")
+                for (low, high), name in BIT_FIELD_MAP.items():
+                    extracted, _, _ = extract_bit_range(last_value, low, high)
+                    width = abs(high - low) + 1
+                    print(f"  {name}: 0b{extracted:0{width}b} (dec = {extracted})")
+            else:
+                print("Predefined bit fields:")
+                for (low, high), name in BIT_FIELD_MAP.items():
+                    print(f"  {name}: bit {low}-{high}")
+            continue
         elif re.fullmatch(r"r\d+-\d+", user_input):
             m = re.match(r"r(\d+)-(\d+)", user_input)
-            start, end = int(m.group(1)), int(m.group(2))
+            start, end = int(m.group(1)), intｓ(m.group(2))
         elif user_input in FIELD_NAME_MAP and user_input not in RESERVED_WORDS:
             start, end = FIELD_NAME_MAP[user_input]
         else:
@@ -199,6 +212,19 @@ def run_gui():
             label += f" [{key}]"
         result_box.insert(tk.END, f"\n{label} = 0b{extracted:0{width}b} (dec = {extracted})\n")
 
+    def on_list():
+        result_box.insert(tk.END, "\n")
+        if last_value['int'] is not None:
+            result_box.insert(tk.END, "Last parsed value per field:\n")
+            for (low, high), name in BIT_FIELD_MAP.items():
+                extracted, _, _ = extract_bit_range(last_value['int'], low, high)
+                width = abs(high - low) + 1
+                result_box.insert(tk.END, f"  {name}: 0b{extracted:0{width}b} (dec = {extracted})\n")
+        else:
+            result_box.insert(tk.END, "Predefined bit fields:\n")
+            for (low, high), name in BIT_FIELD_MAP.items():
+                result_box.insert(tk.END, f"  {name}: bit {low}-{high}\n")
+
     root = tk.Tk()
     root.title("Verilog Byte Analyzer")
 
@@ -233,8 +259,10 @@ def run_gui():
     extract_entry.bind("<Return>", on_extract)
     ttk.Button(frame, text="Extract", command=on_extract).grid(column=2, row=4)
 
+    ttk.Button(frame, text="List", command=on_list).grid(column=2, row=5)
+
     result_box = tk.Text(frame, width=100, height=25, wrap="none")
-    result_box.grid(column=0, row=5, columnspan=3, pady=10)
+    result_box.grid(column=0, row=6, columnspan=3, pady=10)
 
     root.mainloop()
 

@@ -158,8 +158,33 @@ def interactive_loop():
         elif re.fullmatch(r"r\d+-\d+", user_input):
             m = re.match(r"r(\d+)-(\d+)", user_input)
             start, end = int(m.group(1)), int(m.group(2))
+            if last_value is None:
+                print("No value parsed yet. Please enter a value first.")
+                continue
+            extracted, low, high = extract_bit_range(last_value, start, end)
+            width = high - low + 1
+            bin_str = f"{extracted:0{width}b}".rjust(32, ' ')
+            dec_str = str(extracted)
+            hex_str = f"0x{extracted:x}"
+            print(f"{f'bit {low}-{high}'.ljust(15)} {bin_str}")
+            print(f"{'':15} dec: {dec_str}    hex: {hex_str}")
+            print(f"{'':15} {'-' * 40}")
+            continue
         elif user_input in FIELD_NAME_MAP and user_input not in RESERVED_WORDS:
             start, end = FIELD_NAME_MAP[user_input]
+            if last_value is None:
+                print("No value parsed yet. Please enter a value first.")
+                continue
+            extracted, low, high = extract_bit_range(last_value, start, end)
+            width = high - low + 1
+            bin_str = f"{extracted:0{width}b}".rjust(32, ' ')
+            dec_str = str(extracted)
+            hex_str = f"0x{extracted:x}"
+            label = f"bit {low}-{high} [{user_input}]"
+            print(f"{label.ljust(15)} {bin_str}")
+            print(f"{'':15} dec: {dec_str}    hex: {hex_str}")
+            print(f"{'':15} {'-' * 40}")
+            continue
         else:
             value = parse_by_mode(user_input, current_input_mode)
             if value is None:
@@ -170,13 +195,6 @@ def interactive_loop():
             print(f"[Result] Input mode = {current_input_mode}, Output = {current_output_format}, Alignment = {current_align_mode}")
             print(display_bytes(bytes_list, current_output_format, current_align_mode))
             continue
-
-        extracted, low, high = extract_bit_range(last_value, start, end)
-        width = high - low + 1
-        label = f"bit {low}-{high}"
-        if user_input in FIELD_NAME_MAP:
-            label += f" [{user_input}]"
-        print(f"{label} = 0b{extracted:0{width}b} (dec = {extracted})")
 
 # ───── GUI Mode ─────
 def run_gui():
@@ -217,7 +235,12 @@ def run_gui():
         label = f"Bit {low}-{high}"
         if key in FIELD_NAME_MAP:
             label += f" [{key}]"
-        result_box.insert(tk.END, f"\n{label} = 0b{extracted:0{width}b} (dec = {extracted})\n")
+        bin_str = f"{extracted:0{width}b}".rjust(32, ' ')
+        dec_str = str(extracted)
+        hex_str = f"0x{extracted:x}"
+        result_box.insert(tk.END, f"\n{label.ljust(15)} {bin_str}\n")
+        result_box.insert(tk.END, f"{'':15} dec: {dec_str}    hex: {hex_str}\n")
+        result_box.insert(tk.END, f"{'':15} {'-' * 40}\n")
 
     def on_list():
         result_box.insert(tk.END, "\n")

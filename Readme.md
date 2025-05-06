@@ -17,6 +17,7 @@ Supports both command-line and GUI modes for debugging, bit-range extraction, an
 - ⌨️ GUI: Press `Enter` to analyze or extract bits
 - 🧩 Dropdowns are fixed (single-choice) to avoid invalid entries
 - 📥 Import custom bit field maps using JSONC files (CLI: `-f <file>`, GUI: “Load FieldMap”)
+- 🆚 Compare mode: Input two values (CLI or GUI) to visualize bitwise and field-level differences
 
 ---
 
@@ -35,7 +36,26 @@ byte_align / dw_align    - Switch alignment mode
 r<low>-<high>            - Extract bit range from last input  
 <field_name>             - Extract predefined field (e.g. opcode)  
 list                     - Show predefined bit fields and last parsed values  
+<val1> <val2>              - Enter two values in sequence to compare field differences
 q                        - Quit
+```
+
+### 🧪 Example: Compare Mode
+
+```bash
+# Compare two hex values and view bit differences
+python analyzer.py
+> 0x1234 0x1274
+```
+Output:
+```
+[Compare Mode] Value 1 vs Value 2
+  Value 1: 4660 (0x1234)
+  Value 2: 4724 (0x1274)
+  flag        : 3 -> 7
+----------------------------------------
+[Result] Input mode = hex, Output = bin, Alignment = dw_align
+...
 ```
 
 ## 🪟 GUI Mode

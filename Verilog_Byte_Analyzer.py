@@ -373,45 +373,44 @@ def run_gui():
     root.title("Verilog Byte Analyzer")
 
     frame = ttk.Frame(root, padding=10)
-    frame.grid()
+    frame.grid(sticky="nsew")
+    frame.grid_columnconfigure(1, weight=1)
 
-    ttk.Label(frame, text="Input Value:").grid(column=0, row=0, sticky="w")
+    # Input section
+    ttk.Label(frame, text="Input Value:").grid(column=0, row=0, sticky="w", padx=2, pady=2)
     input_entry = ttk.Entry(frame, width=40)
-    input_entry.grid(column=1, row=0, columnspan=2)
-    # input_entry.bind("<Return>", on_analyze)
+    input_entry.grid(column=1, row=0, columnspan=2, sticky="ew", padx=2, pady=2)
     input_entry.bind("<Return>", lambda e: on_compare() if len(input_entry.get().strip().split()) == 2 else on_analyze())
 
-    ttk.Label(frame, text="Input Mode:").grid(column=0, row=1, sticky="w")
+    ttk.Label(frame, text="Input Mode:").grid(column=0, row=1, sticky="w", padx=2, pady=2)
     input_mode = ttk.Combobox(frame, values=["hex", "dec", "bin"], width=10, state="readonly")
     input_mode.set("hex")
-    input_mode.grid(column=1, row=1)
+    input_mode.grid(column=1, row=1, sticky="w", padx=2, pady=2)
+    ttk.Button(frame, text="Analyze", command=on_analyze).grid(column=2, row=1, padx=2, pady=2)
 
-    ttk.Label(frame, text="Output Format:").grid(column=0, row=2, sticky="w")
+    ttk.Label(frame, text="Output Format:").grid(column=0, row=2, sticky="w", padx=2, pady=2)
     output_mode = ttk.Combobox(frame, values=["hex", "dec", "bin"], width=10, state="readonly")
     output_mode.set("bin")
-    output_mode.grid(column=1, row=2)
+    output_mode.grid(column=1, row=2, sticky="w", padx=2, pady=2)
+    ttk.Button(frame, text="Compare", command=on_compare).grid(column=2, row=2, padx=2, pady=2)
 
-    ttk.Label(frame, text="Align Mode:").grid(column=0, row=3, sticky="w")
+    ttk.Label(frame, text="Align Mode:").grid(column=0, row=3, sticky="w", padx=2, pady=2)
     align_mode = ttk.Combobox(frame, values=["byte_align", "dw_align"], width=12, state="readonly")
     align_mode.set("byte_align")
-    align_mode.grid(column=1, row=3)
+    align_mode.grid(column=1, row=3, sticky="w", padx=2, pady=2)
 
-    ttk.Button(frame, text="Analyze", command=on_analyze).grid(column=2, row=1, rowspan=1)
-    ttk.Button(frame, text="Compare", command=on_compare).grid(column=2, row=2)
-
-    ttk.Label(frame, text="Bit Range or Field:").grid(column=0, row=4, sticky="w")
+    ttk.Label(frame, text="Bit Range or Field:").grid(column=0, row=4, sticky="w", padx=2, pady=2)
     extract_entry = ttk.Entry(frame, width=20)
-    extract_entry.grid(column=1, row=4)
+    extract_entry.grid(column=1, row=4, sticky="w", padx=2, pady=2)
     extract_entry.bind("<Return>", on_extract)
-    ttk.Button(frame, text="Extract", command=on_extract).grid(column=2, row=4)
+    ttk.Button(frame, text="Extract", command=on_extract).grid(column=2, row=4, padx=2, pady=2)
 
-    ttk.Button(frame, text="List", command=on_list).grid(column=2, row=5)
-    ttk.Button(frame, text="Load FieldMap", command=on_load_fieldmap).grid(column=2, row=6)
+    ttk.Button(frame, text="List", command=on_list).grid(column=2, row=5, padx=2, pady=2)
+    ttk.Button(frame, text="Load FieldMap", command=on_load_fieldmap).grid(column=2, row=6, padx=2, pady=2)
+    ttk.Button(frame, text="Clear Result", command=on_clear_result).grid(column=2, row=7, padx=2, pady=4)
 
     result_box = tk.Text(frame, width=100, height=25, wrap="none")
-    result_box.grid(column=0, row=8, columnspan=3, pady=10)
-
-    ttk.Button(frame, text="Clear Result", command=on_clear_result).grid(column=2, row=7, sticky="e")
+    result_box.grid(column=0, row=8, columnspan=3, sticky="nsew", padx=2, pady=10)
 
     root.mainloop()
 

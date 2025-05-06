@@ -53,19 +53,23 @@ def convert_to_bytes(value):
         value >>= 8
     return result
 
-def display_bytes(bytes_list, output_format, align_mode, bits_per_row=16):
+def display_bytes(bytes_list, output_format, align_mode, bits_per_row=16, reference_bytes=None):
     output = []
     if align_mode == 'byte_align':
         for i, b in enumerate(bytes_list):
+            ref = reference_bytes[i] if reference_bytes and i < len(reference_bytes) else None
             if output_format == 'hex':
                 output.append(f"byte{i}: 8'h{b:02x}")
             elif output_format == 'dec':
                 output.append(f"byte{i}: {b}")
             elif output_format == 'bin':
                 bin_str = f"{b:08b}"
+                ref_str = f"{ref:08b}" if ref is not None else "--------"
+                diff_str = ''.join(['^' if ref is not None and bit != r else ' ' for bit, r in zip(bin_str, ref_str)])
                 bit_labels = "".join([f"{'bit'+str(7-j):>6}" for j in range(8)])
                 bit_values = "".join([f"{bit:>6}" for bit in bin_str])
-                output.append(f"byte{i}:\n  {bit_labels}\n  {bit_values}")
+                diff_line  = "".join([f"{c:>6}" for c in diff_str])
+                output.append(f"byte{i}:\n  {bit_labels}\n  {bit_values}\n  {diff_line}")
         output.append(f"--- Total {len(bytes_list)} bytes ---")
 
     elif align_mode == 'dw_align':
@@ -76,19 +80,26 @@ def display_bytes(bytes_list, output_format, align_mode, bits_per_row=16):
                 word_bytes.append(0)
             word = (word_bytes[3] << 24) | (word_bytes[2] << 16) | (word_bytes[1] << 8) | word_bytes[0]
 
+            ref_bytes = reference_bytes[i*4 : i*4+4] if reference_bytes else None
+            ref_bytes = ref_bytes + [0] * (4 - len(ref_bytes)) if ref_bytes and len(ref_bytes) < 4 else ref_bytes
+            ref_word = (ref_bytes[3] << 24) | (ref_bytes[2] << 16) | (ref_bytes[1] << 8) | ref_bytes[0] if ref_bytes else None
+
             if output_format == 'hex':
                 output.append(f"dw{i}: 32'h{word:08x}")
             elif output_format == 'dec':
                 output.append(f"dw{i}: {word}")
             elif output_format == 'bin':
                 bin_str = f"{word:032b}"
-                lines = [f"dw{i}:"]
+                ref_str = f"{ref_word:032b}" if ref_word is not None else '-'*32
+                diff_str = ''.join('^' if ref_word is not None and b != r else ' ' for b, r in zip(bin_str, ref_str))
+
+                output.append(f"dw{i}:")
                 for row_start in range(0, 32, bits_per_row):
                     row_bits = bin_str[row_start:row_start + bits_per_row]
-                    bit_labels = "".join([f"{'b'+str(31 - (row_start + j)):>6}" for j in range(len(row_bits))])
-                    bit_values = "".join([f"{bit:>6}" for bit in row_bits])
-                    lines.append(f"  {bit_labels}\n  {bit_values}")
-                output.extend(lines)
+                    row_labels = ''.join([f"{'b'+str(31 - (row_start + j)):>6}" for j in range(len(row_bits))])
+                    row_values = ''.join([f"{bit:>6}" for bit in row_bits])
+                    row_diffs = ''.join([f"{c:>6}" for c in diff_str[row_start:row_start + bits_per_row]])
+                    output.append(f"  {row_labels}\n  {row_values}\n  {row_diffs}")
         output.append(f"--- Total {len(bytes_list)} bytes, {word_count} x 32-bit words ---")
     return "\n".join(output)
 
@@ -106,6 +117,7 @@ def print_status(input_mode, output_format, align_mode):
     print("  byte_align / dw_align    - Switch alignment mode")
     print("  r<low>-<high>            - Extract bit range from last value")
     print("  <field_name>             - Extract predefined field (if not a reserved word)")
+    print("  <val1> <val2>            - Enter two values in sequence to compare field differences")
     print("  list                     - Show predefined bit field names")
     print("  q                        - Quit")
     print(f"Current settings: input = {input_mode}, output = {output_format}, alignment = {align_mode}\n")
@@ -116,6 +128,7 @@ def interactive_loop():
     current_output_format = 'hex'
     current_align_mode = 'byte_align'
     last_value = None
+    compare_queue = []
 
     print("Verilog Byte Analyzer (Terminal Mode)")
     print_status(current_input_mode, current_output_format, current_align_mode)
@@ -193,15 +206,46 @@ def interactive_loop():
             print(f"{'':15} {'-' * 40}")
             continue
         else:
-            value = parse_by_mode(user_input, current_input_mode)
-            if value is None:
-                print("Invalid input or reserved word.")
+            tokens = user_input.split()
+            if len(tokens) == 2:
+                # Force output format to binary for compare mode
+                current_output_format = 'bin'
+                val1 = parse_by_mode(tokens[0], current_input_mode)
+                val2 = parse_by_mode(tokens[1], current_input_mode)
+                if val1 is None or val2 is None:
+                    print("Invalid input for one or both values.")
+                    continue
+
+                print("[Compare Mode] Value 1 vs Value 2")
+                print(f"  Value 1: {val1} (0x{val1:x})")
+                print(f"  Value 2: {val2} (0x{val2:x})")
+
+                diff = val1 ^ val2
+                print(f"{'-'*40}")
+                for (low, high), name in sorted(BIT_FIELD_MAP.items(), key=lambda x: x[0][0]):
+                    f1 = extract_bit_range(val1, low, high)[0]
+                    f2 = extract_bit_range(val2, low, high)[0]
+                    if f1 != f2:
+                        print(f"  {name.ljust(12)}: {f1} -> {f2}")
+                print(f"{'-'*40}")
+                last_value = val1
+                bytes_list = convert_to_bytes(val1)
+                print(f"[Result] Input mode = {current_input_mode}, Output = {current_output_format}, Alignment = {current_align_mode}")
+                print(display_bytes(bytes_list, current_output_format, current_align_mode, reference_bytes=convert_to_bytes(val2)))
                 continue
-            last_value = value
-            bytes_list = convert_to_bytes(value)
-            print(f"[Result] Input mode = {current_input_mode}, Output = {current_output_format}, Alignment = {current_align_mode}")
-            print(display_bytes(bytes_list, current_output_format, current_align_mode))
-            continue
+            elif len(tokens) == 1:
+                value = parse_by_mode(tokens[0], current_input_mode)
+                if value is None:
+                    print("Invalid input or reserved word.")
+                    continue
+                last_value = value
+                bytes_list = convert_to_bytes(value)
+                print(f"[Result] Input mode = {current_input_mode}, Output = {current_output_format}, Alignment = {current_align_mode}")
+                print(display_bytes(bytes_list, current_output_format, current_align_mode))
+                continue
+            else:
+                print("Unrecognized input format.")
+                continue
 
 # ───── GUI Mode ─────
 def run_gui():
@@ -222,6 +266,44 @@ def run_gui():
         result += display_bytes(bytes_list, output, align)
         result_box.delete(1.0, tk.END)
         result_box.insert(tk.END, result)
+        input_entry.delete(0, tk.END)
+
+    def on_compare():
+        input_text = input_entry.get().strip()
+        mode = input_mode.get()
+        output = 'bin'
+        align = align_mode.get()
+        tokens = input_text.split()
+        if len(tokens) != 2:
+            messagebox.showerror("Error", "Please enter exactly two values separated by space.")
+            return
+        val1 = parse_by_mode(tokens[0], mode)
+        val2 = parse_by_mode(tokens[1], mode)
+        if val1 is None or val2 is None:
+            messagebox.showerror("Error", "Invalid input for one or both values.")
+            return
+
+        last_value['int'] = val1
+        bytes_list = convert_to_bytes(val1)
+        ref_bytes = convert_to_bytes(val2)
+
+        result = f"[Compare Mode] Value 1 vs Value 2\n"
+        result += f"  Value 1: {val1} (0x{val1:x})\n"
+        result += f"  Value 2: {val2} (0x{val2:x})\n"
+        result += f"{'-'*40}\n"
+        for (low, high), name in sorted(BIT_FIELD_MAP.items(), key=lambda x: x[0][0]):
+            f1 = extract_bit_range(val1, low, high)[0]
+            f2 = extract_bit_range(val2, low, high)[0]
+            if f1 != f2:
+                result += f"  {name.ljust(12)}: {f1} -> {f2}\n"
+        result += f"{'-'*40}\n"
+        result += f"[Result] Input mode = {mode}, Output = {output}, Align = {align}\n\n"
+        result += display_bytes(bytes_list, output, align, reference_bytes=ref_bytes)
+        result_box.delete(1.0, tk.END)
+        result_box.insert(tk.END, result)
+        input_entry.delete(0, tk.END)
+    def on_clear_result():
+        result_box.delete(1.0, tk.END)
 
     def on_extract(event=None):
         if last_value['int'] is None:
@@ -296,7 +378,8 @@ def run_gui():
     ttk.Label(frame, text="Input Value:").grid(column=0, row=0, sticky="w")
     input_entry = ttk.Entry(frame, width=40)
     input_entry.grid(column=1, row=0, columnspan=2)
-    input_entry.bind("<Return>", on_analyze)
+    # input_entry.bind("<Return>", on_analyze)
+    input_entry.bind("<Return>", lambda e: on_compare() if len(input_entry.get().strip().split()) == 2 else on_analyze())
 
     ttk.Label(frame, text="Input Mode:").grid(column=0, row=1, sticky="w")
     input_mode = ttk.Combobox(frame, values=["hex", "dec", "bin"], width=10, state="readonly")
@@ -313,7 +396,8 @@ def run_gui():
     align_mode.set("byte_align")
     align_mode.grid(column=1, row=3)
 
-    ttk.Button(frame, text="Analyze", command=on_analyze).grid(column=2, row=1, rowspan=2)
+    ttk.Button(frame, text="Analyze", command=on_analyze).grid(column=2, row=1, rowspan=1)
+    ttk.Button(frame, text="Compare", command=on_compare).grid(column=2, row=2)
 
     ttk.Label(frame, text="Bit Range or Field:").grid(column=0, row=4, sticky="w")
     extract_entry = ttk.Entry(frame, width=20)
@@ -325,7 +409,9 @@ def run_gui():
     ttk.Button(frame, text="Load FieldMap", command=on_load_fieldmap).grid(column=2, row=6)
 
     result_box = tk.Text(frame, width=100, height=25, wrap="none")
-    result_box.grid(column=0, row=7, columnspan=3, pady=10)
+    result_box.grid(column=0, row=8, columnspan=3, pady=10)
+
+    ttk.Button(frame, text="Clear Result", command=on_clear_result).grid(column=2, row=7, sticky="e")
 
     root.mainloop()
 

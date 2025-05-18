@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="appPageTitle">靜態 Verilog 位元組分析器</title>
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --primary-hover-color: #0056b3;
+            --secondary-color: #6c757d;
+            --secondary-hover-color: #545b62;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --light-bg-color: #f8f9fa;
+            --dark-text-color: #343a40;
+            --light-text-color: #6c757d;
+            --border-color: #dee2e6;
+            --border-radius: 0.25rem;
+            --box-shadow: 0 0.1rem 0.2rem rgba(0, 0, 0, 0.07);
+            --font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        }
+
+        body {
+            font-family: var(--font-family-sans-serif);
+            margin: 0;
+            background-color: #eef1f5;
+            color: var(--dark-text-color);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 15px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap; /* Allow wrapping for smaller screens */
+        }
+
+        .app-title {
+            color: var(--dark-text-color);
+            text-align: left; /* Align to left to make space for switcher */
+            margin-bottom: 0; /* Adjusted margin */
+            font-size: 1.5rem;
+            flex-grow: 1; /* Allow title to take available space */
+        }
+
+        .language-switcher {
+            display: flex;
+            gap: 8px;
+            margin-left: 10px; /* Space from title */
+        }
+
+        .language-switcher button {
+            padding: 5px 10px;
+            font-size: 0.8rem;
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .language-switcher button:hover {
+            background-color: var(--secondary-hover-color);
+        }
+        .language-switcher button.active {
+            background-color: var(--primary-color);
+            font-weight: bold;
+        }
+
+
+        .app-content-wrapper {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            width: 100%;
+        }
+
+        .main-controls-area {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .results-sidebar-area {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--light-bg-color);
+            padding: 15px;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+            min-width: 220px;
+            max-height: calc(100vh - 150px); /* Adjusted for potential header bar height */
+            overflow-y: hidden;
+        }
+        
+        .results-sidebar-area h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+            color: var(--dark-text-color);
+            flex-shrink: 0;
+        }
+
+        #resultBox {
+            width: 100%;
+            flex-grow: 1;
+            overflow: auto;
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            box-sizing: border-box;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+            background-color: #fff;
+            border-radius: var(--border-radius);
+            font-size: 0.8rem;
+            line-height: 1.4;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+            min-height: 150px;
+        }
+        
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .control-group label {
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: var(--dark-text-color);
+            font-size: 0.85rem;
+        }
+
+        .control-group input[type="text"],
+        .control-group select,
+        .control-group input[type="file"] {
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            box-sizing: border-box;
+            font-size: 0.9rem;
+            background-color: #fff;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+
+        .control-group input[type="text"]:focus,
+        .control-group select:focus {
+            border-color: var(--primary-color);
+            outline: 0;
+            box-shadow: 0 0 0 0.15rem rgba(0, 123, 255, 0.25);
+        }
+
+        .control-group input[type="file"] {
+            padding: 6px 10px;
+        }
+        .control-group input[type="file"]::file-selector-button {
+            padding: 6px 10px;
+            margin-right: 8px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .control-group input[type="file"]::file-selector-button:hover {
+            background-color: var(--primary-hover-color);
+        }
+
+        .button-group {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-start;
+        }
+        .button-group.centered {
+             justify-content: center;
+        }
+
+        .button-group button {
+            padding: 8px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background-color 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: var(--box-shadow);
+        }
+        .button-group button:hover {
+            background-color: var(--primary-hover-color);
+            box-shadow: 0 0.2rem 0.4rem rgba(0,0,0,0.1);
+        }
+        .button-group button:active {
+            background-color: #004085;
+        }
+        .button-group button.secondary {
+            background-color: var(--secondary-color);
+        }
+        .button-group button.secondary:hover {
+            background-color: var(--secondary-hover-color);
+        }
+         .button-group button.success {
+            background-color: var(--success-color);
+        }
+        .button-group button.success:hover {
+            background-color: #1e7e34;
+        }
+
+        hr {
+            border: 0;
+            height: 1px;
+            background-color: var(--border-color);
+            margin: 20px 0;
+        }
+
+        .info-text {
+            font-size: 0.8rem;
+            color: var(--light-text-color);
+            margin-top: 6px;
+        }
+
+        @media (max-width: 768px) {
+            .app-content-wrapper {
+                flex-direction: column;
+            }
+            .results-sidebar-area {
+                margin-top: 20px;
+                max-height: 400px;
+                min-width: unset;
+            }
+            .container {
+                 max-width: 100%; 
+                 padding: 15px;
+            }
+             .app-title {
+                font-size: 1.3rem;
+            }
+            .header-bar {
+                flex-direction: column; /* Stack title and switcher on small screens */
+                align-items: flex-start;
+            }
+            .language-switcher {
+                margin-left: 0;
+                margin-top: 10px; /* Add space when stacked */
+            }
+        }
+         @media (max-width: 480px) {
+            .control-grid {
+                grid-template-columns: 1fr;
+            }
+            .button-group {
+                flex-direction: column;
+            }
+            .button-group button {
+                width: 100%;
+            }
+             .app-title {
+                font-size: 1.2rem;
+            }
+            .results-sidebar-area h3 {
+                font-size: 1rem;
+            }
+            #resultBox {
+                font-size: 0.75rem;
+            }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-bar">
+            <h1 class="app-title" id="appTitle">靜態 Verilog 位元組分析器</h1>
+            <div class="language-switcher">
+                <button id="langZhBtn" class="active">中文</button>
+                <button id="langEnBtn">English</button>
+            </div>
+        </div>
+
+        <div class="app-content-wrapper">
+            <div class="main-controls-area">
+                <div class="control-grid">
+                    <div class="control-group">
+                        <label for="inputValue" id="inputValueLabel">輸入值 (或 '值1 值2' 用於比較):</label>
+                        <input type="text" id="inputValue" placeholder="例如：FFFF0000 或 32'hCAFE_BABE">
+                    </div>
+                    <div class="control-group">
+                        <label for="inputMode" id="inputModeLabel">輸入模式:</label>
+                        <select id="inputMode">
+                            <option value="hex" selected id="hexOption">十六進位 (Hex)</option>
+                            <option value="dec" id="decOption">十進位 (Decimal)</option>
+                            <option value="bin" id="binOption">二進位 (Binary)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="outputFormat" id="outputFormatLabel">輸出格式:</label>
+                        <select id="outputFormat">
+                            <option value="hex" id="outputHexOption">十六進位 (Hex)</option>
+                            <option value="dec" id="outputDecOption">十進位 (Decimal)</option>
+                            <option value="bin" selected id="outputBinOption">二進位 (Binary)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="alignMode" id="alignModeLabel">對齊模式:</label>
+                        <select id="alignMode">
+                            <option value="byte_align" selected id="byteAlignOption">位元組對齊 (Byte Align)</option>
+                            <option value="dw_align" id="dwAlignOption">雙字對齊 (DW Align - 32bit)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button id="analyzeBtn">分析</button>
+                    <button id="compareBtn">比較</button>
+                </div>
+
+                <hr>
+
+                <div class="control-grid">
+                    <div class="control-group">
+                        <label for="extractKey" id="extractKeyLabel">位元範圍或欄位名稱:</label>
+                        <input type="text" id="extractKey" placeholder="例如：12-8 或 opcode">
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button id="extractBtn">提取</button>
+                    <button id="listFieldsBtn" class="secondary">列出欄位</button>
+                </div>
+
+                <hr>
+
+                <div class="control-grid">
+                    <div class="control-group">
+                        <label for="fieldmapFile" id="fieldmapFileLabel">載入欄位對應表 (JSONC 檔案):</label>
+                        <input type="file" id="fieldmapFile" accept=".jsonc,.json">
+                        <p class="info-text" id="fieldmapFileInfo">上傳檔案將覆寫目前的欄位定義。</p>
+                    </div>
+                </div>
+                <div class="button-group">
+                    <button id="loadFieldmapBtn" class="success">載入欄位對應表</button>
+                </div>
+                
+                <hr>
+
+                <div class="button-group centered">
+                    <button id="clearResultBtn" class="secondary">清除結果</button>
+                </div>
+            </div>
+
+            <div class="results-sidebar-area">
+                <h3 id="resultsTitle">結果:</h3>
+                <div id="resultBox">點擊按鈕開始分析...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全域變數
+        let BIT_FIELD_MAP = {
+            "[8,12]": "opcode",
+            "[0,3]": "valid",
+            "[4,7]": "flag",
+            "[16,23]": "address",
+            "[24,31]": "immediate",
+        };
+        let FIELD_NAME_MAP = {};
+        const RESERVED_WORDS = new Set([
+            "hex", "dec", "bin",
+            "to_hex", "to_bin", "to_dec",
+            "byte_align", "dw_align",
+            "list", "q"
+        ]);
+        let lastParsedValue = null;
+        let currentLanguage = 'zh'; // 預設語言
+
+        const translations = {
+            zh: {
+                appPageTitle: "靜態 Verilog 位元組分析器",
+                appTitle: "靜態 Verilog 位元組分析器",
+                inputValueLabel: "輸入值 (或 '值1 值2' 用於比較):",
+                inputValuePlaceholder: "例如：FFFF0000 或 32'hCAFE_BABE",
+                inputModeLabel: "輸入模式:",
+                hexOption: "十六進位 (Hex)",
+                decOption: "十進位 (Decimal)",
+                binOption: "二進位 (Binary)",
+                outputFormatLabel: "輸出格式:",
+                outputHexOption: "十六進位 (Hex)",
+                outputDecOption: "十進位 (Decimal)",
+                outputBinOption: "二進位 (Binary)",
+                alignModeLabel: "對齊模式:",
+                byteAlignOption: "位元組對齊 (Byte Align)",
+                dwAlignOption: "雙字對齊 (DW Align - 32bit)",
+                analyzeBtnText: "分析",
+                compareBtnText: "比較",
+                extractKeyLabel: "位元範圍或欄位名稱:",
+                extractKeyPlaceholder: "例如：12-8 或 opcode",
+                extractBtnText: "提取",
+                listFieldsBtnText: "列出欄位",
+                fieldmapFileLabel: "載入欄位對應表 (JSONC 檔案):",
+                fieldmapFileInfo: "上傳檔案將覆寫目前的欄位定義。",
+                loadFieldmapBtnText: "載入欄位對應表",
+                clearResultBtnText: "清除結果",
+                resultsTitle: "結果:",
+                initialResultText: "點擊按鈕開始分析...",
+                errorPrefix: "錯誤: ",
+                successPrefix: "成功: ",
+                errorInputRequired: "請輸入要分析的值。",
+                errorInvalidInput: "無效的輸入: '%s' (模式: %s)",
+                errorCompareTwoValues: "請輸入兩個由空格分隔的值進行比較。",
+                errorInvalidCompareValues: "一個或兩個比較值無效。",
+                errorExtractKeyRequired: "請輸入位元範圍或欄位名稱進行提取。",
+                errorNoValueAnalyzed: "尚未分析任何值。請先分析一個值。",
+                errorInvalidBitRangeOrName: "無效的位元範圍或欄位名稱。",
+                errorExtractionFailed: "提取失敗。",
+                errorChooseFile: "請先選擇一個 JSONC 檔案。",
+                errorLoadFieldmapFailed: "載入欄位對應表失敗: %s",
+                errorReadFile: "讀取檔案時發生錯誤。",
+                resultCleared: "結果已清除。",
+                fieldmapLoadedSuccess: "成功從 %s 載入欄位對應表。",
+                analysisResults: "[分析結果]",
+                inputMode: "輸入模式",
+                outputFormat: "輸出格式",
+                alignModeResult: "對齊",
+                inputValueDecimal: "輸入值 (十進位)",
+                inputValueHex: "輸入值 (十六進位)",
+                compareMode: "[比較模式]",
+                value1VsValue2: "值1 vs 值2",
+                value1Decimal: "值1 (十進位)",
+                value1Hex: "值1 (十六進位)",
+                value2Decimal: "值2 (十進位)",
+                value2Hex: "值2 (十六進位)",
+                results: "結果",
+                byteLabel: "byte",
+                dwLabel: "dw",
+                totalBytes: "--- 共 %s 位元組 ---",
+                totalBytesAndWords: "--- 共 %s 位元組, %s 個 32位元字 ---",
+                bitRangeLabel: "位元 %s-%s",
+                bitRangeFieldLabel: "位元 %s-%s [%s]",
+                binaryLabel: "二進位",
+                decimalLabel: "十進位",
+                hexadecimalLabel: "十六進位",
+                lastAnalyzedFields: "最後分析值的各欄位:",
+                predefinedBitFields: "預定義的位元欄位:",
+                fieldLabel: "欄位",
+                bitsLabel: "位元",
+                fileEmptyOrCommentsOnly: "檔案為空或只包含註解。",
+                invalidFieldFormat: "欄位 '%s' 的值無效。",
+            },
+            en: {
+                appPageTitle: "Static Verilog Byte Analyzer",
+                appTitle: "Static Verilog Byte Analyzer",
+                inputValueLabel: "Input Value (or 'val1 val2' for compare):",
+                inputValuePlaceholder: "e.g., FFFF0000 or 32'hCAFE_BABE",
+                inputModeLabel: "Input Mode:",
+                hexOption: "Hexadecimal (Hex)",
+                decOption: "Decimal (Decimal)",
+                binOption: "Binary (Binary)",
+                outputFormatLabel: "Output Format:",
+                outputHexOption: "Hexadecimal (Hex)",
+                outputDecOption: "Decimal (Decimal)",
+                outputBinOption: "Binary (Binary)",
+                alignModeLabel: "Align Mode:",
+                byteAlignOption: "Byte Align",
+                dwAlignOption: "Double Word Align (DW Align - 32bit)",
+                analyzeBtnText: "Analyze",
+                compareBtnText: "Compare",
+                extractKeyLabel: "Bit Range or Field Name:",
+                extractKeyPlaceholder: "e.g., 12-8 or opcode",
+                extractBtnText: "Extract",
+                listFieldsBtnText: "List Fields",
+                fieldmapFileLabel: "Load FieldMap (JSONC File):",
+                fieldmapFileInfo: "Uploading will overwrite current field definitions.",
+                loadFieldmapBtnText: "Load FieldMap",
+                clearResultBtnText: "Clear Result",
+                resultsTitle: "Results:",
+                initialResultText: "Click a button to start analysis...",
+                errorPrefix: "Error: ",
+                successPrefix: "Success: ",
+                errorInputRequired: "Please enter a value to analyze.",
+                errorInvalidInput: "Invalid input: '%s' (mode: %s)",
+                errorCompareTwoValues: "Please enter two space-separated values to compare.",
+                errorInvalidCompareValues: "One or both compare values are invalid.",
+                errorExtractKeyRequired: "Please enter a bit range or field name to extract.",
+                errorNoValueAnalyzed: "No value has been analyzed yet. Please analyze a value first.",
+                errorInvalidBitRangeOrName: "Invalid bit range or field name.",
+                errorExtractionFailed: "Extraction failed.",
+                errorChooseFile: "Please choose a JSONC file first.",
+                errorLoadFieldmapFailed: "Failed to load FieldMap: %s",
+                errorReadFile: "Error reading file.",
+                resultCleared: "Results cleared.",
+                fieldmapLoadedSuccess: "Successfully loaded FieldMap from %s.",
+                analysisResults: "[Analysis Results]",
+                inputMode: "Input Mode",
+                outputFormat: "Output Format",
+                alignModeResult: "Align",
+                inputValueDecimal: "Input Value (Decimal)",
+                inputValueHex: "Input Value (Hex)",
+                compareMode: "[Compare Mode]",
+                value1VsValue2: "Value1 vs Value2",
+                value1Decimal: "Value1 (Decimal)",
+                value1Hex: "Value1 (Hex)",
+                value2Decimal: "Value2 (Decimal)",
+                value2Hex: "Value2 (Hex)",
+                results: "Results",
+                byteLabel: "byte",
+                dwLabel: "dw",
+                totalBytes: "--- Total %s bytes ---",
+                totalBytesAndWords: "--- Total %s bytes, %s 32-bit words ---",
+                bitRangeLabel: "Bits %s-%s",
+                bitRangeFieldLabel: "Bits %s-%s [%s]",
+                binaryLabel: "Binary",
+                decimalLabel: "Decimal",
+                hexadecimalLabel: "Hexadecimal",
+                lastAnalyzedFields: "Fields of last analyzed value:",
+                predefinedBitFields: "Predefined Bit Fields:",
+                fieldLabel: "Field",
+                bitsLabel: "Bits",
+                fileEmptyOrCommentsOnly: "File is empty or contains only comments.",
+                invalidFieldFormat: "Invalid value for field '%s'.",
+            }
+        };
+        
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            const tr = translations[lang];
+
+            document.getElementById('appPageTitle').textContent = tr.appPageTitle;
+            document.getElementById('appTitle').textContent = tr.appTitle;
+            
+            document.getElementById('inputValueLabel').textContent = tr.inputValueLabel;
+            document.getElementById('inputValue').placeholder = tr.inputValuePlaceholder;
+            document.getElementById('inputModeLabel').textContent = tr.inputModeLabel;
+            document.getElementById('hexOption').textContent = tr.hexOption;
+            document.getElementById('decOption').textContent = tr.decOption;
+            document.getElementById('binOption').textContent = tr.binOption;
+            document.getElementById('outputFormatLabel').textContent = tr.outputFormatLabel;
+            document.getElementById('outputHexOption').textContent = tr.outputHexOption;
+            document.getElementById('outputDecOption').textContent = tr.outputDecOption;
+            document.getElementById('outputBinOption').textContent = tr.outputBinOption;
+            document.getElementById('alignModeLabel').textContent = tr.alignModeLabel;
+            document.getElementById('byteAlignOption').textContent = tr.byteAlignOption;
+            document.getElementById('dwAlignOption').textContent = tr.dwAlignOption;
+            
+            document.getElementById('analyzeBtn').textContent = tr.analyzeBtnText;
+            document.getElementById('compareBtn').textContent = tr.compareBtnText;
+            
+            document.getElementById('extractKeyLabel').textContent = tr.extractKeyLabel;
+            document.getElementById('extractKey').placeholder = tr.extractKeyPlaceholder;
+            document.getElementById('extractBtn').textContent = tr.extractBtnText;
+            document.getElementById('listFieldsBtn').textContent = tr.listFieldsBtnText;
+            
+            document.getElementById('fieldmapFileLabel').textContent = tr.fieldmapFileLabel;
+            document.getElementById('fieldmapFileInfo').textContent = tr.fieldmapFileInfo;
+            document.getElementById('loadFieldmapBtn').textContent = tr.loadFieldmapBtnText;
+            
+            document.getElementById('clearResultBtn').textContent = tr.clearResultBtnText;
+            document.getElementById('resultsTitle').textContent = tr.resultsTitle;
+            
+            // Update initial result box text if it's the default
+            if (resultBoxEl.textContent === translations.zh.initialResultText || resultBoxEl.textContent === translations.en.initialResultText) {
+                resultBoxEl.textContent = tr.initialResultText;
+            }
+
+            // Update active button style for language switcher
+            document.getElementById('langZhBtn').classList.toggle('active', lang === 'zh');
+            document.getElementById('langEnBtn').classList.toggle('active', lang === 'en');
+
+            // If there's a result displayed, re-render it if necessary (tricky, might need to store last operation and re-run)
+            // For now, we'll just translate static parts. Dynamic parts will be translated when actions are re-triggered.
+        }
+
+
+        function updateFieldNameMap() {
+            FIELD_NAME_MAP = {};
+            for (const key in BIT_FIELD_MAP) {
+                const fieldName = BIT_FIELD_MAP[key];
+                FIELD_NAME_MAP[fieldName] = JSON.parse(key);
+            }
+        }
+        updateFieldNameMap();
+
+        const inputValueEl = document.getElementById('inputValue');
+        const inputModeEl = document.getElementById('inputMode');
+        const outputFormatEl = document.getElementById('outputFormat');
+        const alignModeEl = document.getElementById('alignMode');
+        const extractKeyEl = document.getElementById('extractKey');
+        const resultBoxEl = document.getElementById('resultBox');
+        const fieldmapFileEl = document.getElementById('fieldmapFile');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const compareBtn = document.getElementById('compareBtn');
+        const extractBtn = document.getElementById('extractBtn');
+        const langZhBtn = document.getElementById('langZhBtn');
+        const langEnBtn = document.getElementById('langEnBtn');
+
+        langZhBtn.addEventListener('click', () => setLanguage('zh'));
+        langEnBtn.addEventListener('click', () => setLanguage('en'));
+
+        // Helper for sprintf-like functionality
+        function formatString(str, ...args) {
+            return str.replace(/%s/g, () => args.shift() || '');
+        }
+
+        function parseByMode(inputStr, mode) {
+            inputStr = inputStr.trim().toLowerCase();
+            if (mode === 'hex') {
+                const match = inputStr.match(/(?:[\d]+['`])?h([0-9a-f_]+)/);
+                let hexDigits = match ? match[1] : inputStr;
+                hexDigits = hexDigits.replace(/_/g, "");
+                if (/^[0-9a-f]+$/.test(hexDigits)) {
+                    try { return Number(BigInt(`0x${hexDigits}`)); } catch (e) { console.error("Error parsing hex:", e); return null; }
+                }
+            } else if (mode === 'dec') {
+                if (/^\d+$/.test(inputStr)) {
+                    try { return Number(BigInt(inputStr)); } catch (e) { console.error("Error parsing dec:", e); return null; }
+                }
+            } else if (mode === 'bin') {
+                const match = inputStr.match(/(?:[\d]+['`])?b([01_]+)/);
+                let binDigits = match ? match[1] : inputStr;
+                binDigits = binDigits.replace(/_/g, "");
+                if (/^[01]+$/.test(binDigits)) {
+                    try { return Number(BigInt(`0b${binDigits}`)); } catch (e) { console.error("Error parsing bin:", e); return null; }
+                }
+            }
+            return null;
+        }
+
+        function convertToBytes(value) {
+            if (value === 0) return [0];
+            if (value === null || typeof value === 'undefined' || Number.isNaN(value)) return [];
+            const result = [];
+            let tempValue = BigInt(value);
+            const byteMask = BigInt(0xFF);
+            if (tempValue < BigInt(0)) {
+                console.warn("Converting negative value to bytes. Representation might be platform/interpretation dependent.");
+                for (let j = 0; j < 8; j++) { // Assuming up to 64-bit for negative numbers
+                    result.push(Number(tempValue & byteMask));
+                    tempValue >>= BigInt(8);
+                    if (tempValue === BigInt(-1) && (result[result.length -1] & 0x80)) break; 
+                }
+                return result.length > 0 ? result : (value === 0 ? [0] : []);
+            }
+            
+            let i = 0;
+            if (tempValue === BigInt(0)) return [0]; // Should be caught by the first line, but defensive.
+            while(tempValue > BigInt(0) && i < 8) { // Limit to 8 bytes (64-bit) for practical display
+                result.push(Number(tempValue & byteMask));
+                tempValue >>= BigInt(8);
+                i++;
+            }
+            return result.length > 0 ? result : (value === 0 ? [0] : []);
+        }
+
+        function displayBytes(bytesList, outputFormat, alignMode, bitsPerRow = 16, referenceBytes = null) {
+            let output = [];
+            const tr = translations[currentLanguage];
+            if (alignMode === 'byte_align') {
+                bytesList.forEach((b, i) => {
+                    const ref = (referenceBytes && i < referenceBytes.length) ? referenceBytes[i] : null;
+                    if (outputFormat === 'hex') {
+                        output.push(`${tr.byteLabel}${i}: 8'h${b.toString(16).padStart(2, '0')}`);
+                    } else if (outputFormat === 'dec') {
+                        output.push(`${tr.byteLabel}${i}: ${b}`);
+                    } else if (outputFormat === 'bin') {
+                        const binStr = b.toString(2).padStart(8, '0');
+                        const refStr = (ref !== null) ? ref.toString(2).padStart(8, '0') : "--------";
+                        const diffStr = Array.from(binStr).map((bit, j) => (ref !== null && bit !== refStr[j]) ? '^' : ' ').join('');
+                        const bitLabels = Array.from({length: 8}, (_, k) => `b${7-k}`.padStart(4)).join(' '); 
+                        const bitValues = Array.from(binStr).map(bit => bit.padStart(4)).join(' '); 
+                        const diffLine  = Array.from(diffStr).map(c => c.padStart(4)).join(' '); 
+                        output.push(`${tr.byteLabel}${i}:\n  ${bitLabels}\n  ${bitValues}\n  ${diffLine}`);
+                    }
+                });
+                output.push(formatString(tr.totalBytes, bytesList.length));
+            } else if (alignMode === 'dw_align') {
+                const wordCount = Math.ceil(bytesList.length / 4);
+                for (let i = 0; i < wordCount; i++) {
+                    let wordBytes = bytesList.slice(i * 4, i * 4 + 4);
+                    while (wordBytes.length < 4) wordBytes.push(0); // Pad with 0 for the last word if not full
+                    const wordVal = BigInt(wordBytes[0]) | (BigInt(wordBytes[1]) << BigInt(8)) | (BigInt(wordBytes[2]) << BigInt(16)) | (BigInt(wordBytes[3]) << BigInt(24));
+                    const word = Number(wordVal & BigInt(0xFFFFFFFF)); // Ensure it's a 32-bit unsigned value for display
+                    let refWord = null;
+                    if (referenceBytes) {
+                        let refWBytes = referenceBytes.slice(i * 4, i * 4 + 4);
+                        while (refWBytes.length < 4) refWBytes.push(0);
+                        const refWordVal = BigInt(refWBytes[0]) | (BigInt(refWBytes[1]) << BigInt(8)) | (BigInt(refWBytes[2]) << BigInt(16)) | (BigInt(refWBytes[3]) << BigInt(24));
+                        refWord = Number(refWordVal & BigInt(0xFFFFFFFF));
+                    }
+
+                    if (outputFormat === 'hex') {
+                        output.push(`${tr.dwLabel}${i}: 32'h${word.toString(16).padStart(8, '0')}`);
+                    } else if (outputFormat === 'dec') {
+                        output.push(`${tr.dwLabel}${i}: ${word}`);
+                    } else if (outputFormat === 'bin') {
+                        const binStr = (word >>> 0).toString(2).padStart(32, '0'); // Ensure unsigned 32-bit binary string
+                        const refStr = (refWord !== null) ? (refWord >>> 0).toString(2).padStart(32, '0') : "-".repeat(32);
+                        const diffStr = Array.from(binStr).map((b_char, k) => (refWord !== null && b_char !== refStr[k]) ? '^' : ' ').join('');
+                        output.push(`${tr.dwLabel}${i}:`);
+                        for (let rowStart = 0; rowStart < 32; rowStart += bitsPerRow) {
+                            const rowBits = binStr.substring(rowStart, rowStart + bitsPerRow);
+                            if (rowBits.length === 0) continue;
+                            const rowLabels = Array.from({length: rowBits.length}, (_, j) => `b${31 - (rowStart + j)}`.padStart(4)).join(' ');
+                            const rowValues = Array.from(rowBits).map(bit => bit.padStart(4)).join(' ');
+                            const rowDiffs  = Array.from(diffStr.substring(rowStart, rowStart + bitsPerRow)).map(c => c.padStart(4)).join(' ');
+                            output.push(`  ${rowLabels}\n  ${rowValues}\n  ${rowDiffs}`);
+                        }
+                    }
+                }
+                output.push(formatString(tr.totalBytesAndWords, bytesList.length, wordCount));
+            }
+            return output.join('\n');
+        }
+
+        function extractBitRange(value, startBit, endBit) {
+            if (value === null || Number.isNaN(value)) return { extracted: null, low: null, high: null };
+            const valBigInt = BigInt(value);
+            const lowBigInt = BigInt(Math.min(startBit, endBit));
+            const highBigInt = BigInt(Math.max(startBit, endBit));
+            const widthBigInt = highBigInt - lowBigInt + BigInt(1);
+            if (widthBigInt <= BigInt(0)) return { extracted: 0, low: Number(lowBigInt), high: Number(highBigInt) }; // Or handle as error
+            
+            let mask = (widthBigInt > BigInt(0)) ? (BigInt(1) << widthBigInt) - BigInt(1) : BigInt(0);
+            const extracted = (valBigInt >> lowBigInt) & mask;
+            return { extracted: Number(extracted), low: Number(lowBigInt), high: Number(lowBigInt + widthBigInt - BigInt(1)) };
+        }
+
+        function displayResult(text, append = false) {
+            if (append) {
+                resultBoxEl.textContent += text + '\n';
+            } else {
+                resultBoxEl.textContent = text;
+            }
+            resultBoxEl.scrollTop = resultBoxEl.scrollHeight;
+        }
+
+        function displayError(messageKey, ...args) {
+            const tr = translations[currentLanguage];
+            const message = formatString(tr[messageKey] || messageKey, ...args);
+            displayResult(`${tr.errorPrefix}${message}`);
+            resultBoxEl.style.borderColor = "var(--danger-color)";
+            setTimeout(() => { resultBoxEl.style.borderColor = "var(--border-color)"; }, 3000);
+        }
+        function displaySuccess(messageKey, ...args) {
+            const tr = translations[currentLanguage];
+            const message = formatString(tr[messageKey] || messageKey, ...args);
+            displayResult(`${tr.successPrefix}${message}`, true);
+        }
+
+        analyzeBtn.addEventListener('click', () => {
+            const tr = translations[currentLanguage];
+            const inputText = inputValueEl.value.split(' ')[0];
+            if (!inputText) { displayError("errorInputRequired"); return; }
+            const mode = inputModeEl.value;
+            const outputFmt = outputFormatEl.value;
+            const align = alignModeEl.value;
+            const value = parseByMode(inputText, mode);
+            if (value === null || Number.isNaN(value)) { displayError("errorInvalidInput", inputText, mode); return; }
+            lastParsedValue = value;
+            const bytesList = convertToBytes(value);
+            let resultHeader = `${tr.analysisResults} ${tr.inputMode}: ${mode}, ${tr.outputFormat}: ${outputFmt}, ${tr.alignModeResult}: ${align}\n`;
+            resultHeader += `${tr.inputValueDecimal}: ${value} \n${tr.inputValueHex}: 0x${BigInt(value).toString(16)}\n\n`;
+            const resultBody = displayBytes(bytesList, outputFmt, align);
+            displayResult(resultHeader + resultBody);
+        });
+
+        compareBtn.addEventListener('click', () => {
+            const tr = translations[currentLanguage];
+            const inputs = inputValueEl.value.trim().split(/\s+/);
+            if (inputs.length !== 2) { displayError("errorCompareTwoValues"); return; }
+            const mode = inputModeEl.value;
+            const align = alignModeEl.value;
+            const outputFmt = 'bin'; // Comparison is always binary detail
+            const val1 = parseByMode(inputs[0], mode);
+            const val2 = parseByMode(inputs[1], mode);
+            if (val1 === null || val2 === null || Number.isNaN(val1) || Number.isNaN(val2)) { displayError("errorInvalidCompareValues"); return; }
+            lastParsedValue = val1; // Store first value as last parsed for potential extraction
+            let result = `${tr.compareMode} ${tr.value1VsValue2}\n`;
+            result += `  ${tr.value1Decimal}: ${val1} (${tr.value1Hex}: 0x${BigInt(val1).toString(16)})\n`;
+            result += `  ${tr.value2Decimal}: ${val2} (${tr.value2Hex}: 0x${BigInt(val2).toString(16)})\n`;
+            result += `${'-'.repeat(40)}\n`;
+            const sortedFieldKeys = Object.keys(BIT_FIELD_MAP).sort((a, b) => JSON.parse(a)[0] - JSON.parse(b)[0]);
+            sortedFieldKeys.forEach(key => {
+                const fieldName = BIT_FIELD_MAP[key];
+                const [low, high] = JSON.parse(key);
+                const f1 = extractBitRange(val1, low, high).extracted;
+                const f2 = extractBitRange(val2, low, high).extracted;
+                if (f1 !== f2) { result += `  ${fieldName.padEnd(12)}: ${f1} -> ${f2}\n`; }
+            });
+            result += `${'-'.repeat(40)}\n`;
+            result += `[${tr.results}] ${tr.inputMode}: ${mode}, ${tr.outputFormat}: ${outputFmt}, ${tr.alignModeResult}: ${align}\n\n`;
+            const bytesListVal1 = convertToBytes(val1);
+            const refBytesVal2 = convertToBytes(val2);
+            result += displayBytes(bytesListVal1, outputFmt, align, 16, refBytesVal2);
+            displayResult(result);
+        });
+
+        extractBtn.addEventListener('click', () => {
+            const tr = translations[currentLanguage];
+            const extractKey = extractKeyEl.value.trim();
+            if (!extractKey) { displayError("errorExtractKeyRequired"); return; }
+            if (lastParsedValue === null || Number.isNaN(lastParsedValue)) { displayError("errorNoValueAnalyzed"); return; }
+            let startBit, endBit, fieldNameForLabel = null;
+            if (/^\d+-\d+$/.test(extractKey)) {
+                [startBit, endBit] = extractKey.split('-').map(Number);
+            } else if (FIELD_NAME_MAP[extractKey] && !RESERVED_WORDS.has(extractKey)) {
+                [startBit, endBit] = FIELD_NAME_MAP[extractKey];
+                fieldNameForLabel = extractKey;
+            } else { displayError("errorInvalidBitRangeOrName"); return; }
+            const { extracted, low, high } = extractBitRange(lastParsedValue, startBit, endBit);
+            if (extracted === null || Number.isNaN(extracted)) { displayError("errorExtractionFailed"); return; }
+            const width = Math.max(1, high - low + 1);
+            let label;
+            if (fieldNameForLabel) {
+                label = formatString(tr.bitRangeFieldLabel, low, high, fieldNameForLabel);
+            } else {
+                label = formatString(tr.bitRangeLabel, low, high);
+            }
+            
+            const binStr = typeof extracted === 'number' ? BigInt(extracted).toString(2).padStart(width, '0') : 'N/A';
+            const decStr = typeof extracted === 'number' ? extracted.toString(10) : 'N/A';
+            const hexStr = typeof extracted === 'number' ? `0x${BigInt(extracted).toString(16)}` : 'N/A';
+            
+            let output = `\n${label}:\n`;
+            output += `  ${tr.binaryLabel}: ${binStr}\n`;
+            output += `  ${tr.decimalLabel}: ${decStr.padEnd(10)} ${tr.hexadecimalLabel}: ${hexStr}\n`;
+            const decHexLineLength = `  ${tr.decimalLabel}: ${decStr}`.length + ` ${tr.hexadecimalLabel}: ${hexStr}`.length -10;
+            output += `  ${'-'.repeat(Math.max(20, binStr.length + tr.binaryLabel.length + 2, decHexLineLength))}\n`;
+            displayResult(output, true);
+        });
+
+        document.getElementById('listFieldsBtn').addEventListener('click', () => {
+            const tr = translations[currentLanguage];
+            let outputLines = ["\n"];
+            if (lastParsedValue !== null && !Number.isNaN(lastParsedValue)) {
+                outputLines.push(tr.lastAnalyzedFields);
+                const sortedFieldKeys = Object.keys(BIT_FIELD_MAP).sort((a,b) => JSON.parse(a)[0] - JSON.parse(b)[0]);
+                sortedFieldKeys.forEach(key => {
+                    const name = BIT_FIELD_MAP[key];
+                    const [low, high] = JSON.parse(key);
+                    const { extracted } = extractBitRange(lastParsedValue, low, high);
+                    const width = Math.max(1, Math.abs(high - low) + 1);
+                    const binStr = typeof extracted === 'number' ? BigInt(extracted).toString(2).padStart(width, '0') : 'N/A';
+                    const decStr = typeof extracted === 'number' ? extracted.toString(10) : 'N/A';
+                    const hexStr = typeof extracted === 'number' ? `0x${BigInt(extracted).toString(16)}` : 'N/A';
+                    
+                    outputLines.push(`${name} (${tr.bitsLabel} ${low}-${high}):`);
+                    outputLines.push(`  ${tr.binaryLabel}: ${binStr}`);
+                    outputLines.push(`  ${tr.decimalLabel}: ${decStr.padEnd(10)} ${tr.hexadecimalLabel}: ${hexStr}`);
+                    outputLines.push(`  ${'-'.repeat(35)}`);
+                });
+            } else {
+                outputLines.push(tr.predefinedBitFields);
+                const sortedFieldKeys = Object.keys(BIT_FIELD_MAP).sort((a,b) => JSON.parse(a)[0] - JSON.parse(b)[0]);
+                sortedFieldKeys.forEach(key => {
+                    const name = BIT_FIELD_MAP[key];
+                    const [low, high] = JSON.parse(key);
+                    outputLines.push(`  ${name.padEnd(15)} ${tr.bitsLabel} ${low}-${high}`);
+                });
+            }
+            displayResult(outputLines.join('\n'), true);
+        });
+
+        document.getElementById('loadFieldmapBtn').addEventListener('click', () => {
+            const tr = translations[currentLanguage];
+            if (fieldmapFileEl.files.length === 0) { displayError("errorChooseFile"); return; }
+            const file = fieldmapFileEl.files[0];
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    let content = event.target.result;
+                    // Remove comments (block and line)
+                    content = content.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1');
+                    if (!content.trim()) { throw new Error(tr.fileEmptyOrCommentsOnly); }
+                    const jsonMap = JSON.parse(content);
+                    const newBitFieldMap = {};
+                    for (const fieldName in jsonMap) {
+                        const range = jsonMap[fieldName];
+                        if (!Array.isArray(range) || range.length !== 2 || !range.every(num => Number.isInteger(num))) {
+                            throw new Error(formatString(tr.invalidFieldFormat, fieldName));
+                        }
+                        newBitFieldMap[`[${range[0]},${range[1]}]`] = fieldName;
+                    }
+                    BIT_FIELD_MAP = newBitFieldMap;
+                    updateFieldNameMap();
+                    displaySuccess("fieldmapLoadedSuccess", file.name);
+                } catch (e) { displayError("errorLoadFieldmapFailed", e.message); }
+            };
+            reader.onerror = function() { displayError("errorReadFile"); };
+            reader.readAsText(file);
+        });
+
+        document.getElementById('clearResultBtn').addEventListener('click', () => {
+            const tr = translations[currentLanguage];
+            resultBoxEl.textContent = tr.resultCleared;
+        });
+
+        inputValueEl.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const inputs = inputValueEl.value.trim().split(/\s+/);
+                if (inputs.length === 2 && inputs[0] && inputs[1]) { compareBtn.click(); } else { analyzeBtn.click(); }
+            }
+        });
+
+        extractKeyEl.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') { event.preventDefault(); extractBtn.click(); }
+        });
+
+        // Initialize with default language
+        setLanguage(currentLanguage); 
+        // Set initial result box text after language is set
+        resultBoxEl.textContent = translations[currentLanguage].initialResultText;
+
+
+    </script>
+</body>
+</html>
